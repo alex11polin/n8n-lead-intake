@@ -1,0 +1,229 @@
+{
+  "id": "leadIntake01",
+  "name": "Lead intake: webhook → validate → Telegram + Sheets",
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "lead-intake",
+        "responseMode": "responseNode",
+        "options": {}
+      },
+      "id": "n1",
+      "name": "Webhook",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "position": [
+        0,
+        200
+      ],
+      "webhookId": "lead-intake"
+    },
+    {
+      "parameters": {
+        "jsCode": "// Проверка и нормализация заявки из формы/бота\nconst body = $input.first().json.body || {};\nconst errors = [];\n\nconst name = String(body.name || '').trim();\nconst message = String(body.message || '').trim();\nconst source = String(body.source || 'unknown').trim().slice(0, 40);\n\n// телефон: оставляем цифры и ведущий +, требуем 10-15 цифр\nconst rawPhone = String(body.phone || '').trim();\nconst digits = rawPhone.replace(/\\D/g, '');\nconst phone = digits ? '+' + digits : '';\n\nif (name.length < 2) errors.push('name: минимум 2 символа');\nif (digits.length < 10 || digits.length > 15) errors.push('phone: нужно 10-15 цифр');\nif (message.length < 3) errors.push('message: минимум 3 символа');\n\nconst lead = {\n  id: 'L' + Date.now().toString(36).toUpperCase(),\n  createdAt: new Date().toISOString(),\n  name, phone, message, source,\n};\n\nreturn [{ json: { valid: errors.length === 0, errors, lead } }];"
+      },
+      "id": "n2",
+      "name": "Validate & normalize",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        220,
+        200
+      ]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict"
+          },
+          "conditions": [
+            {
+              "id": "c1",
+              "leftValue": "={{ $json.valid }}",
+              "rightValue": true,
+              "operator": {
+                "type": "boolean",
+                "operation": "true",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "n3",
+      "name": "Valid?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        440,
+        200
+      ]
+    },
+    {
+      "parameters": {
+        "chatId": "YOUR_TELEGRAM_CHAT_ID",
+        "text": "=🆕 Новая заявка {{ $json.lead.id }}\nИмя: {{ $json.lead.name }}\nТелефон: {{ $json.lead.phone }}\nИсточник: {{ $json.lead.source }}\n\n{{ $json.lead.message }}",
+        "additionalFields": {
+          "appendAttribution": false
+        }
+      },
+      "id": "n4",
+      "name": "Notify admin (Telegram)",
+      "type": "n8n-nodes-base.telegram",
+      "typeVersion": 1.2,
+      "position": [
+        680,
+        100
+      ],
+      "onError": "continueRegularOutput",
+      "credentials": {}
+    },
+    {
+      "parameters": {
+        "operation": "append",
+        "documentId": {
+          "__rl": true,
+          "value": "YOUR_GOOGLE_SHEET_ID",
+          "mode": "id"
+        },
+        "sheetName": {
+          "__rl": true,
+          "value": "Leads",
+          "mode": "name"
+        },
+        "columns": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "id": "={{ $('Validate & normalize').item.json.lead.id }}",
+            "createdAt": "={{ $('Validate & normalize').item.json.lead.createdAt }}",
+            "name": "={{ $('Validate & normalize').item.json.lead.name }}",
+            "phone": "={{ $('Validate & normalize').item.json.lead.phone }}",
+            "message": "={{ $('Validate & normalize').item.json.lead.message }}",
+            "source": "={{ $('Validate & normalize').item.json.lead.source }}"
+          },
+          "matchingColumns": [],
+          "schema": []
+        },
+        "options": {}
+      },
+      "id": "n5",
+      "name": "Save to Google Sheets",
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.5,
+      "position": [
+        900,
+        100
+      ],
+      "onError": "continueRegularOutput",
+      "credentials": {}
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ { status: 'ok', id: $('Validate & normalize').item.json.lead.id } }}",
+        "options": {
+          "responseCode": 200
+        }
+      },
+      "id": "n6",
+      "name": "Respond 200",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.1,
+      "position": [
+        1120,
+        100
+      ]
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ { status: 'error', errors: $json.errors } }}",
+        "options": {
+          "responseCode": 400
+        }
+      },
+      "id": "n7",
+      "name": "Respond 400",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.1,
+      "position": [
+        680,
+        320
+      ]
+    }
+  ],
+  "connections": {
+    "Webhook": {
+      "main": [
+        [
+          {
+            "node": "Validate & normalize",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Validate & normalize": {
+      "main": [
+        [
+          {
+            "node": "Valid?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Valid?": {
+      "main": [
+        [
+          {
+            "node": "Notify admin (Telegram)",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Respond 400",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Notify admin (Telegram)": {
+      "main": [
+        [
+          {
+            "node": "Save to Google Sheets",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Save to Google Sheets": {
+      "main": [
+        [
+          {
+            "node": "Respond 200",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": false,
+  "settings": {
+    "executionOrder": "v1"
+  }
+}
