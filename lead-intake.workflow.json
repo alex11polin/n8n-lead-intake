@@ -1,6 +1,6 @@
 {
   "id": "leadIntake01",
-  "name": "Lead intake: webhook → validate → Telegram + Sheets",
+  "name": "Lead intake: webhook → validate → Telegram + Data Table",
   "nodes": [
     {
       "parameters": {
@@ -86,22 +86,18 @@
     },
     {
       "parameters": {
-        "operation": "append",
-        "documentId": {
+        "resource": "row",
+        "operation": "insert",
+        "dataTableId": {
           "__rl": true,
-          "value": "YOUR_GOOGLE_SHEET_ID",
-          "mode": "id"
-        },
-        "sheetName": {
-          "__rl": true,
-          "value": "Leads",
-          "mode": "name"
+          "mode": "name",
+          "value": "leads"
         },
         "columns": {
           "mappingMode": "defineBelow",
           "value": {
-            "id": "={{ $('Validate & normalize').item.json.lead.id }}",
-            "createdAt": "={{ $('Validate & normalize').item.json.lead.createdAt }}",
+            "leadId": "={{ $('Validate & normalize').item.json.lead.id }}",
+            "submittedAt": "={{ $('Validate & normalize').item.json.lead.createdAt }}",
             "name": "={{ $('Validate & normalize').item.json.lead.name }}",
             "phone": "={{ $('Validate & normalize').item.json.lead.phone }}",
             "message": "={{ $('Validate & normalize').item.json.lead.message }}",
@@ -109,19 +105,17 @@
           },
           "matchingColumns": [],
           "schema": []
-        },
-        "options": {}
+        }
       },
       "id": "n5",
-      "name": "Save to Google Sheets",
-      "type": "n8n-nodes-base.googleSheets",
-      "typeVersion": 4.5,
+      "name": "Save to Data Table",
+      "type": "n8n-nodes-base.dataTable",
+      "typeVersion": 1.1,
       "position": [
         900,
         100
       ],
-      "onError": "continueRegularOutput",
-      "credentials": {}
+      "onError": "continueRegularOutput"
     },
     {
       "parameters": {
@@ -203,14 +197,14 @@
       "main": [
         [
           {
-            "node": "Save to Google Sheets",
+            "node": "Save to Data Table",
             "type": "main",
             "index": 0
           }
         ]
       ]
     },
-    "Save to Google Sheets": {
+    "Save to Data Table": {
       "main": [
         [
           {
