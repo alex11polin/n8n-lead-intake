@@ -7,7 +7,8 @@
         "httpMethod": "POST",
         "path": "lead-intake",
         "responseMode": "responseNode",
-        "options": {}
+        "options": {},
+        "authentication": "headerAuth"
       },
       "id": "n1",
       "name": "Webhook",
@@ -17,11 +18,17 @@
         0,
         200
       ],
-      "webhookId": "lead-intake"
+      "webhookId": "lead-intake",
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "",
+          "name": "Lead intake token"
+        }
+      }
     },
     {
       "parameters": {
-        "jsCode": "// Проверка и нормализация заявки из формы/бота\nconst body = $input.first().json.body || {};\nconst errors = [];\n\nconst name = String(body.name || '').trim();\nconst message = String(body.message || '').trim();\nconst source = String(body.source || 'unknown').trim().slice(0, 40);\n\n// телефон: оставляем цифры и ведущий +, требуем 10-15 цифр\nconst rawPhone = String(body.phone || '').trim();\nconst digits = rawPhone.replace(/\\D/g, '');\nconst phone = digits ? '+' + digits : '';\n\nif (name.length < 2) errors.push('name: минимум 2 символа');\nif (digits.length < 10 || digits.length > 15) errors.push('phone: нужно 10-15 цифр');\nif (message.length < 3) errors.push('message: минимум 3 символа');\n\nconst lead = {\n  id: 'L' + Date.now().toString(36).toUpperCase(),\n  createdAt: new Date().toISOString(),\n  name, phone, message, source,\n};\n\nreturn [{ json: { valid: errors.length === 0, errors, lead } }];"
+        "jsCode": "// Проверка и нормализация заявки из формы/бота\nconst body = $input.first().json.body || {};\nconst errors = [];\n\nconst name = String(body.name || '').trim();\nconst message = String(body.message || '').trim();\nconst source = String(body.source || 'unknown').trim().slice(0, 40);\n\n// телефон: оставляем только цифры, требуем 10-15 цифр\nconst rawPhone = String(body.phone || '').trim();\nconst digits = rawPhone.replace(/\\D/g, '');\n// российский формат 8XXXXXXXXXX -> +7XXXXXXXXXX\nconst normalized = (digits.length === 11 && digits.startsWith('8')) ? '7' + digits.slice(1) : digits;\nconst phone = normalized ? '+' + normalized : '';\n\nif (name.length < 2) errors.push('name: минимум 2 символа');\nif (digits.length < 10 || digits.length > 15) errors.push('phone: нужно 10-15 цифр');\nif (message.length < 3) errors.push('message: минимум 3 символа');\n\nconst lead = {\n  id: 'L' + Date.now().toString(36).toUpperCase(),\n  createdAt: new Date().toISOString(),\n  name, phone, message, source,\n};\n\nreturn [{ json: { valid: errors.length === 0, errors, lead } }];"
       },
       "id": "n2",
       "name": "Validate & normalize",
